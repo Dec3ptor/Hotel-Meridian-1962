@@ -1,0 +1,26 @@
+{
+  "name": "the-meridian",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Meridian: a top-down time-loop murder mystery set in a fading art deco hotel, 1962.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "sim": "tsx scripts/sim.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "pixi.js": "^8.6.0"
+  }
+}
