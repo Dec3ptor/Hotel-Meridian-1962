@@ -431,6 +431,8 @@ export interface PlanStep {
   /** For wait steps; receives the tick the step started. */
   until?: (w: World, a: AgentState, startedTick: number) => boolean;
   minutes?: number;
+  /** Game minutes this step may take before the plan is abandoned. */
+  timeout?: number;
   notBefore?: GameTime;
   deadline?: GameTime;
   label?: string;

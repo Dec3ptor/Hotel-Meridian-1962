@@ -621,6 +621,130 @@ body {
   opacity: 0.8;
 }
 
+/* --- Notebook ----------------------------------------------------------------- */
+.card .inner.notebook {
+  max-width: min(760px, 92vw);
+  width: 92vw;
+  text-align: left;
+  padding: 16px 20px;
+}
+.notebook .row button.active {
+  background: rgba(201, 162, 74, 0.3);
+}
+.notebook-body {
+  margin-top: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  font-size: calc(14px * var(--text-scale));
+}
+.notebook .person {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(201, 162, 74, 0.3);
+}
+.notebook .person .portrait {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--display);
+  color: var(--ink);
+  border: 2px solid var(--gold);
+}
+.notebook .person h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: normal;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+}
+.notebook .person p {
+  margin: 4px 0;
+}
+.notebook ul {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+}
+.notebook .muted,
+.card .muted {
+  opacity: 0.7;
+  font-size: calc(12px * var(--text-scale));
+}
+.notebook .questions li {
+  color: var(--gold);
+}
+.notebook table.timeline {
+  border-collapse: collapse;
+  width: 100%;
+}
+.notebook table.timeline td {
+  padding: 3px 6px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(232, 220, 192, 0.1);
+}
+.notebook table.timeline td.t {
+  color: var(--gold);
+  font-family: var(--display);
+  white-space: nowrap;
+}
+.notebook table.timeline td.n {
+  opacity: 0.6;
+  white-space: nowrap;
+}
+.notebook svg.board {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.notebook .theory {
+  margin: 10px 0 18px;
+}
+.notebook .theory h3 {
+  font-family: var(--display);
+  font-weight: normal;
+  color: var(--gold);
+  margin: 0 0 6px;
+}
+.notebook .theory select {
+  font: inherit;
+  background: var(--ink);
+  color: var(--cream);
+  border: 1px solid var(--gold);
+  padding: 8px;
+  min-height: 44px;
+}
+.notebook .proven {
+  color: var(--gold);
+  margin-top: 6px;
+}
+
+/* --- Title screen ------------------------------------------------------------- */
+.title h1 {
+  font-size: calc(48px * var(--text-scale));
+  letter-spacing: 0.35em;
+  margin-bottom: 4px;
+}
+.title .vacancy {
+  color: var(--neon);
+  letter-spacing: 0.4em;
+  font-family: var(--display);
+  text-shadow: 0 0 12px rgba(255, 59, 59, 0.6);
+  animation: neon 2.4s ease-in-out infinite;
+}
+@keyframes neon {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .high-contrast .caption,
 .high-contrast .toast {
   border: 2px solid var(--cream);

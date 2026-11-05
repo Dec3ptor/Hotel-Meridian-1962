@@ -5,9 +5,15 @@
  */
 import '../content';
 import { content } from '../content';
+import { PUBLIC_FACE } from '../content/dialogue/facts';
 import { ACCUSATIONS, CLAIMS, availableTopics, claimIsTrue } from '../content/dialogue/topics';
 import { DebugOverlay } from '../debug/overlay';
 import { InputController } from '../input/pointer';
+import { observe } from '../sim/agents/beliefs';
+import { describeEvent } from '../sim/events';
+import { absorbLoop, knows, type PlayerMemory } from '../sim/memory';
+import { Notebook } from '../ui/notebook';
+import { loadMemory, loadSettings, saveMemory, saveSettings } from './storage';
 import { CHARACTER_LOOKS } from '../render/palette';
 import { Scene, type PickResult } from '../render/scene';
 import { formatClock, minutesToTick } from '../sim/clock';
@@ -73,7 +79,9 @@ export class Game {
   readonly overlays: Overlays;
   readonly input: InputController;
   readonly debug: DebugOverlay;
+  readonly notebook: Notebook;
   readonly uiRoot: HTMLElement;
+  memory: PlayerMemory;
   settings: GameSettings = { ...DEFAULT_SETTINGS };
   hooks: GameHooks;
   seed: number;
@@ -110,6 +118,14 @@ export class Game {
     this.dialogue = new DialoguePanel(uiRoot, { onLeave: () => this.closeDialogue() });
     this.overlays = new Overlays(uiRoot);
     this.debug = new DebugOverlay(uiRoot, this);
+    this.memory = loadMemory();
+    this.notebook = new Notebook(uiRoot, this.s, {
+      onClose: () => this.closeNotebook(),
+      onTheory: (kind, who) => {
+        this.memory.theories[kind] = who;
+        saveMemory(this.memory);
+      },
+    });
     this.input = new InputController(scene.canvas, {
       onTap: (x, y) => this.onTap(x, y),
       onLongPress: (x, y) => this.onLongPress(x, y),
@@ -132,7 +148,18 @@ export class Game {
     const scene = await Scene.create(appRoot, s);
     const hooks: GameHooks = { memoryKnows: () => false, ...opts.hooks };
     const game = new Game(appRoot, uiRoot, scene, opts.seed ?? 1962, hooks);
+    if (!opts.hooks?.memoryKnows) game.hooks.memoryKnows = (fact) => knows(game.memory, fact);
+    game.applySettings(loadSettings());
+    game.seedPlayerKnowledge();
     return game;
+  }
+
+  /** What the player learned on earlier nights, as beliefs they start with. */
+  seedPlayerKnowledge(): void {
+    const w = this.world;
+    for (const [fact, rec] of Object.entries(this.memory.facts)) {
+      observe(w, 'player', fact, rec.value, 'memory');
+    }
   }
 
   get world(): World {
@@ -152,6 +179,7 @@ export class Game {
     this.scene.setReducedMotion(this.settings.reducedMotion);
     document.body.classList.toggle('high-contrast', this.settings.highContrast);
     this.scene.highContrast = this.settings.highContrast;
+    saveSettings(this.settings);
   }
 
   // ---------------------------------------------------------------------------
@@ -183,7 +211,7 @@ export class Game {
     this.hooks.onEvent?.(ev, this);
     switch (ev.type) {
       case 'Said': {
-        const speakerName = ev.speaker === 'player' ? 'You' : this.s.characters[ev.speaker]!.shortName;
+        const speakerName = ev.speaker === 'player' ? 'You' : this.shortNameOf(ev.speaker);
         const mine = ev.speaker === 'player';
         const toMe = ev.to === 'player' || mine;
         if (this.playerHears(ev.room) || toMe) {
@@ -219,7 +247,7 @@ export class Game {
         if (ev.action !== 'move') this.stopWait();
         break;
       case 'PickpocketFailed':
-        this.hud.toast(`${this.s.characters[ev.holder]!.shortName} catches your hand.`, 'fail');
+        this.hud.toast(`${this.shortNameOf(ev.holder)} catches your hand.`, 'fail');
         break;
       case 'Heard':
         if (ev.agent === 'player' && ev.kind !== 'speech') {
@@ -249,13 +277,13 @@ export class Game {
         break;
       case 'SawBody':
         if (ev.agent === 'player') {
-          this.hud.toast(`${this.s.characters[ev.body]!.name} is dead.`, 'clue', 6000);
+          this.hud.toast(`${this.nameOf(ev.body)} is dead.`, 'clue', 6000);
           this.stopWait();
         }
         break;
       case 'Saw':
         if (ev.agent === 'player' && ev.detail) {
-          this.hud.toast(`${this.s.characters[ev.target]!.shortName}: ${ev.detail}.`, 'clue');
+          this.hud.toast(`${this.shortNameOf(ev.target)}: ${ev.detail}.`, 'clue');
           this.stopWait();
         }
         break;
@@ -265,7 +293,7 @@ export class Game {
         break;
       case 'Threatened':
         if (ev.agent === 'player') {
-          this.hud.toast(`${this.s.characters[ev.by]!.shortName} is threatening you.`, 'fail', 5000);
+          this.hud.toast(`${this.shortNameOf(ev.by)} is threatening you.`, 'fail', 5000);
           this.stopWait();
         }
         break;
@@ -294,7 +322,8 @@ export class Game {
   // ---------------------------------------------------------------------------
 
   private speedFactor(): number {
-    if (this.paused || this.ending || !this.started || this.overlays.cardOpen) return 0;
+    if (this.paused || this.ending || !this.started || this.overlays.cardOpen || this.notebook.isOpen) return 0;
+    if (this.overlays.isPortraitBlocked) return 0;
     if (this.waitUntil !== undefined) return 20;
     if (this.dialogue.isOpen) return 0.25;
     return 1;
@@ -533,8 +562,7 @@ export class Game {
       case 'agent': {
         const id = pick.id as CharacterId;
         const a = w.agents[id]!;
-        const def = this.s.characters[id]!;
-        title = def.shortName;
+        title = this.shortNameOf(id);
         if (a.alive && !a.incapacity) {
           verbs.push({ label: 'Talk', primary: true, run: () => this.openDialogue(id) });
           if (w.agents.player!.inventory.length > 0) {
@@ -613,7 +641,7 @@ export class Game {
   private useItemOn(itemId: string, pick: PickResult): void {
     switch (pick.kind) {
       case 'agent':
-        this.overlays.menu(`${this.s.items[itemId]!.name} to ${this.s.characters[pick.id as CharacterId]!.shortName}`, [
+        this.overlays.menu(`${this.s.items[itemId]!.name} to ${this.shortNameOf(pick.id as CharacterId)}`, [
           { label: 'Show', run: () => this.command('show', { to: pick.id, item: itemId }) },
           { label: 'Give', run: () => this.command('give', { to: pick.id, item: itemId }) },
         ]);
@@ -648,11 +676,23 @@ export class Game {
   // Dialogue
   // ---------------------------------------------------------------------------
 
+  /** A character's name as the player currently knows it. */
+  nameOf(id: CharacterId): string {
+    const face = PUBLIC_FACE[id];
+    if (face.revealedBy && !playerKnows(this.world, face.revealedBy) && !this.hooks.memoryKnows(face.revealedBy)) return face.name;
+    return this.s.characters[id]!.name;
+  }
+
+  shortNameOf(id: CharacterId): string {
+    const face = PUBLIC_FACE[id];
+    if (face.revealedBy && !playerKnows(this.world, face.revealedBy) && !this.hooks.memoryKnows(face.revealedBy)) return face.shortName;
+    return this.shortNameOf(id);
+  }
+
   openDialogue(id: CharacterId): void {
-    const def = this.s.characters[id]!;
     const look = CHARACTER_LOOKS[id];
     this.talkingTo = id;
-    this.dialogue.open({ id, name: def.name, initials: look.initials, accent: look.accent });
+    this.dialogue.open({ id, name: this.nameOf(id), initials: look.initials, accent: look.accent });
     this.refreshChoices();
     this.command('talk', { to: id, topic: 'tonight' });
   }
@@ -687,7 +727,7 @@ export class Game {
       label: 'Accuse',
       options: ACCUSATIONS.flatMap((acc) =>
         suspects.map((who) => ({
-          label: `${this.s.characters[who]!.shortName} ${acc.label}`,
+          label: `${this.shortNameOf(who)} ${acc.label}`,
           run: () => this.command('accuse', { to: id, kind: acc.kind, who }),
         })),
       ),
@@ -739,6 +779,7 @@ export class Game {
         { label: 'Resume', primary: true, run: () => this.togglePause() },
         { label: 'Restart this night', run: () => void this.restartNight() },
         { label: 'Settings', run: () => this.openSettings() },
+        { label: document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen', run: () => void toggleFullscreen() },
       ],
     });
   }
@@ -787,7 +828,18 @@ export class Game {
   }
 
   openNotebook(): void {
-    this.hud.toast('The notebook arrives with the next phase.', 'info');
+    if (this.notebook.isOpen) {
+      this.closeNotebook();
+      return;
+    }
+    if (this.overlays.cardOpen) return;
+    this.wheel.close();
+    this.overlays.closeMenu();
+    this.notebook.open(this.memory, this.world);
+  }
+
+  closeNotebook(): void {
+    this.notebook.close();
   }
 
   private onKey(key: string, down: boolean, e: KeyboardEvent): void {
@@ -840,13 +892,17 @@ export class Game {
     this.wheel.close();
     this.overlays.closeMenu();
     this.pendingWheel = undefined;
+    const firstTime = ev.ending !== undefined && !this.memory.endingOrder.includes(ev.ending);
+    absorbLoop(this.memory, this.world, describeEvent);
+    saveMemory(this.memory);
     await this.hooks.onLoopEnd?.(this.world, this);
     await this.overlays.fade(true, 1500);
     const def = ev.ending ? endingDef(this.sim.s, ev.ending) : undefined;
+    const total = this.sim.s.endings.length - 1;
     await new Promise<void>((resolve) => {
       this.overlays.card({
         title: def?.title ?? 'The night ends',
-        subtitle: ev.reason === '2:00 AM' ? '2:00 AM' : ev.reason,
+        subtitle: `${ev.reason === '2:00 AM' ? '2:00 AM' : ev.reason}${firstTime ? ' · a new ending' : ''} · ${this.memory.endingOrder.length} of ${total} found`,
         body: def?.epilogue ?? 'The rain goes on. The clock will come round again.',
         buttons: [{ label: 'Again', primary: true, run: () => resolve() }],
       });
@@ -871,6 +927,7 @@ export class Game {
     this.inventoryKey = '';
     this.hud.clearCaptions();
     this.scene.resetHistory(this.world);
+    this.seedPlayerKnowledge();
     this.hooks.onLoopStart?.(this.world, this);
   }
 
@@ -903,4 +960,21 @@ export class Game {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
+}
+
+/** Enter or leave fullscreen; after entering, ask for landscape and ignore refusals (iOS Safari). */
+export async function toggleFullscreen(): Promise<void> {
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+    if (orientation && typeof orientation.lock === 'function') {
+      await orientation.lock('landscape').catch(() => undefined);
+    }
+  } catch {
+    // Fullscreen is a courtesy; the game runs without it.
+  }
 }

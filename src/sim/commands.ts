@@ -13,6 +13,7 @@ import {
   hasKeyFor,
   hide,
   knock,
+  learn,
   lockDoor,
   moveItem,
   openDoor,
@@ -44,15 +45,7 @@ function num(args: Record<string, Scalar> | undefined, key: string): number | un
   return typeof v === 'number' ? v : undefined;
 }
 
-/** The player learns a fact: recorded on the world for this loop and emitted for the notebook. */
-export function learn(w: World, fact: FactKey, source: string, text: string): boolean {
-  const key = `known:${fact}`;
-  if (w.flags[key]) return false;
-  w.flags[key] = true;
-  observe(w, 'player', fact, true, source);
-  emit(w, { type: 'ClueFound', tick: w.tick, fact, source, text });
-  return true;
-}
+export { learn };
 
 export function playerKnows(w: World, fact: FactKey): boolean {
   return w.flags[`known:${fact}`] === true;

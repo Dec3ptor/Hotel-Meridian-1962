@@ -28,6 +28,16 @@ export function setFlag(w: World, key: string, value: Scalar): void {
   w.flags[key] = value;
 }
 
+/** The player learns a fact: recorded on the world for this loop and emitted for the notebook. */
+export function learn(w: World, fact: string, source: string, text: string): boolean {
+  const key = `known:${fact}`;
+  if (w.flags[key]) return false;
+  w.flags[key] = true;
+  observe(w, 'player', fact, true, source);
+  emit(w, { type: 'ClueFound', tick: w.tick, fact, source, text });
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Sounds and gestures (perceived next tick)
 // ---------------------------------------------------------------------------
@@ -373,6 +383,21 @@ export function attack(w: World, attackerId: CharacterId, targetId: CharacterId,
     }
   }
   emit(w, { type: 'Attacked', tick: w.tick, attacker: attackerId, target: targetId, weapon, outcome, room });
+  // Anyone who can see the attacker knows who did it.
+  if (outcome === 'killed' || outcome === 'shot_attacker') {
+    const victim = outcome === 'killed' ? targetId : attackerId;
+    const killer = outcome === 'killed' ? attackerId : targetId;
+    for (const id of s.characterOrder) {
+      if (id === killer || id === victim) continue;
+      const o = w.agents[id]!;
+      if (!o.alive || !canSee(w, s, o, w.agents[killer]!)) continue;
+      observe(w, id, `killer:${victim}`, killer, 'seen');
+      if (id === 'player') {
+        learn(w, `killerOf${victim.charAt(0).toUpperCase()}${victim.slice(1)}`, killer, `You saw ${s.characters[killer]!.shortName} kill ${s.characters[victim]!.shortName}.`);
+        observe(w, 'player', `killerOf${victim.charAt(0).toUpperCase()}${victim.slice(1)}`, killer, 'seen');
+      }
+    }
+  }
   return outcome;
 }
 

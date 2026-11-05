@@ -84,6 +84,7 @@ export const ruth: CharacterDef = {
       priority: 50,
       notBefore: '10:42',
       persistent: true,
+      retryAfter: 5,
       active: (w, a) =>
         !believes(w, a.id, 'walterWontTell', true, 0.5) ||
         (after(w, '11:55') && !a.flags.knockedOnSuite1) ||

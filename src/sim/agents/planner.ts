@@ -602,8 +602,14 @@ function execute(w: World, s: Static, a: AgentState, def: CharacterDef, step: Pl
       const other = w.agents[target];
       if (!other) return { fail: `unknown agent ${target}` };
       if (!other.alive) return { fail: `${target} is already dead` };
-      const r = approach(w, s, a, step, s.nav.cellOf(other.pos), 1, target);
-      if (r !== 'done') return r;
+      // A blow needs the target within arm's reach: the same tile or a neighbouring one, not diagonal.
+      const targetCell = s.nav.cellOf(other.pos);
+      const here = s.nav.cellOf(a.pos);
+      if (s.nav.dist(here, targetCell) > 1) {
+        const r = approach(w, s, a, step, targetCell, 0, target);
+        if (r !== 'done') return r;
+        if (s.nav.dist(s.nav.cellOf(a.pos), s.nav.cellOf(other.pos)) > 1) return 'continue';
+      }
       const weapon = argStr(w, a, step, 'weapon') ?? hasWeapon(w, a.id);
       const outcome = attack(w, a.id, target, weapon);
       if (outcome === 'failed') return { fail: `attack on ${target} failed` };
@@ -673,6 +679,10 @@ function stepPlan(w: World, s: Static, a: AgentState, def: CharacterDef, goal: G
     }
     if (w.tick > (step.dlTick ?? Infinity)) {
       abandonPlan(w, a, def, goal, plan, `deadline passed at ${label}`);
+      return;
+    }
+    if (step.timeout !== undefined && w.tick - gs.stepStartedTick > minutesToTick(step.timeout)) {
+      abandonPlan(w, a, def, goal, plan, `took too long at ${label}`);
       return;
     }
     if (step.if && !step.if(w, a)) {

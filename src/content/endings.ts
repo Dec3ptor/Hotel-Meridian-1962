@@ -87,14 +87,19 @@ export const endings: EndingDef[] = [
     title: 'Reckoning',
     epilogue: 'Page by page, the ledger goes round the lobby. By the time the bridge is passable, the guests have a prisoner and a story they all agree on.',
     priority: 75,
-    when: (w) => alive(w, 'voss') && flag(w, 'ledgerExposed') === true && flag(w, 'vossHeld') === true,
+    when: (w) => {
+      if (!alive(w, 'voss') || w.agents.voss?.flags.left) return false;
+      let believers = 0;
+      for (const id of CAST) if (id !== 'voss' && alive(w, id) && believes(w, id, 'vossBlackmailer', true, 0.6)) believers++;
+      return believers >= 3;
+    },
   },
   {
     id: 'the_patsy',
     title: 'The Patsy',
     epilogue: 'You, in the wrong room, holding the wrong thing. The deputy writes it up before his coffee cools.',
     priority: 75,
-    when: (w) => flag(w, 'playerBlamed') === true,
+    when: (w) => flag(w, 'playerBlamed') === true || (deadCount(w) > 0 && CAST.some((id) => alive(w, id) && believes(w, id, 'playerSuspect', true, 0.5))),
   },
   {
     id: 'mother_and_daughter',

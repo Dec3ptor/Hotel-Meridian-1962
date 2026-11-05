@@ -125,6 +125,10 @@ async function main(): Promise<void> {
     await page.waitForTimeout(400);
     await page.screenshot({ path: join(outDir, `${view.name}-debug.png`) });
     await page.keyboard.press('`');
+    await page.keyboard.press('n');
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(outDir, `${view.name}-notebook.png`) });
+    await page.keyboard.press('n');
     console.log(`${view.name}: ${JSON.stringify(stats)} errors=${errors.length}`);
     for (const e of errors.slice(0, 10)) console.log(`  error: ${e}`);
     if (errors.length > 0 || stats.ticksAdvanced <= 0) failures++;

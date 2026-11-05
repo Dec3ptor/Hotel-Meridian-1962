@@ -56,7 +56,8 @@ export const hale: CharacterDef = {
       name: 'face the one who was driving',
       priority: 80,
       notBefore: '11:35',
-      active: (w, a) => alive(w, 'vivian') && believes(w, a.id, 'driverOf1949', 'vivian', 0.7) && !believes(w, a.id, 'vivianConfessed', true, 0.5),
+      retryAfter: 15,
+      active: (w, a) => alive(w, 'vivian') && hasWeapon(w, a.id) !== undefined && believes(w, a.id, 'driverOf1949', 'vivian', 0.7) && !believes(w, a.id, 'vivianConfessed', true, 0.5),
       done: (w, a) => believes(w, a.id, 'vivianConfessed', true, 0.5) || !alive(w, 'vivian'),
     },
     confrontIntruderGoal('suite2'),
@@ -110,7 +111,7 @@ export const hale: CharacterDef = {
     silence_witness: [
       {
         id: 'KillTheWitness',
-        steps: [{ do: 'attack', args: { target: 'player' }, deadline: undefined, label: 'no witnesses' }],
+        steps: [{ do: 'attack', args: { target: 'player' }, timeout: 1.5, label: 'no witnesses' }],
         onFail: (w, a) => {
           a.flags.witnessEscaped = true;
         },

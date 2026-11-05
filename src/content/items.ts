@@ -42,7 +42,9 @@ export const fixtures: FixtureDef[] = [
     room: 'office',
     tiles: [{ x: 6, y: 5 }],
     at: { x: 6, y: 5 },
-    description: 'Framed photographs of a party in the bar, 1949. A young actress laughs at the piano.',
+    description: 'Framed photographs of a party in the bar, 1949. A young actress laughs at the piano. At the edge of the frame, a much younger Walter holds a tray.',
+    proves: ['walterWasHere1949'],
+    clueText: 'Walter was on duty the night of the 1949 party.',
   },
   {
     id: 'office_desk',
@@ -372,6 +374,8 @@ export const fixtures: FixtureDef[] = [
     at: { x: 18, y: 24 },
     blocking: true,
     description: 'A pre-war coupe. The front fender carries an old dent, never repaired.',
+    proves: ['vivianCarDented'],
+    clueText: "Vivian's car still carries a dent from 1949.",
   },
   {
     id: 'hale_car',

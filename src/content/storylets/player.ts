@@ -362,6 +362,18 @@ export const playerStorylets: StoryletDef[] = [
     },
     priority: 10,
   },
+  {
+    id: 'vivian_shown_ledger',
+    speaker: 'vivian',
+    trigger: { show: 'blackmail_ledger' },
+    lines: ['She finds her own name without looking for it.', L('vivian', 'Thirteen years, in his handwriting. There are other names. I never thought there would be other names.')],
+    effects: (w, sp) => {
+      setBelief(w, sp.id, 'vossBlackmailer', true, 1, 'player');
+      adjustMood(w, sp.id, 'anger', 2, 'other names in the ledger');
+      adjustMood(w, sp.id, 'resolve', 1, 'other names in the ledger');
+    },
+    priority: 10,
+  },
   fallbackShow('vivian', ['I do not want to see it.', 'Put it away. Please.']),
   {
     id: 'vivian_given_letters',
