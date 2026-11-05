@@ -2,7 +2,7 @@ import { gesture } from '../../sim/actions';
 import { after, dist, inRoom } from '../../sim/query';
 import { storyletRan } from '../../sim/storylets';
 import type { CharacterDef } from '../../sim/types';
-import { idlePlan, knockedRecently, trayConsumed } from './common';
+import { confrontFollowerGoal, confrontFollowerPlans, confrontIntruderGoal, idlePlan, knockedRecently, trayConsumed } from './common';
 
 /**
  * Leonard Voss, 54, a fixer who calls himself a salesman. Tonight is the
@@ -38,7 +38,7 @@ export const voss: CharacterDef = {
     ruth: { trust: 2, knowsSecret: true },
     player: { trust: 2, knowsSecret: false },
   },
-  inventory: ['voss_envelope', 'voss_cash', 'voss_pistol', 'undeveloped_film', 'suite3_key'],
+  inventory: ['voss_envelope', 'voss_cash', 'voss_pistol', 'undeveloped_film', 'suite3_key', 'cadillac_keys'],
   flags: { 'expecting:walter': true },
   chattiness: 0.02,
   goals: [
@@ -96,6 +96,8 @@ export const voss: CharacterDef = {
       active: (w) => storyletRan(w, 'voss_settlement') || after(w, '1:15'),
       done: (w) => storyletRan(w, 'voss_pays_jimmy'),
     },
+    confrontIntruderGoal('suite3'),
+    confrontFollowerGoal(),
     {
       id: 'drink_at_bar',
       name: 'drink at the bar',
@@ -215,6 +217,17 @@ export const voss: CharacterDef = {
         ],
       },
     ],
+    confront_intruder: [
+      {
+        id: 'OutAndLockUp',
+        steps: [
+          { do: 'talk', args: { to: 'player', topic: 'get_out', near: 2, interrupt: true }, label: 'tell them to get out' },
+          { do: 'wait', until: (w, a) => a.beliefs['whereIs:player']?.value !== 'suite3', minutes: 2, label: 'see them out' },
+          { do: 'use', args: { target: 'suite3_door', action: 'lock' }, skipIf: (w, a) => a.beliefs['whereIs:player']?.value === 'suite3' || a.flags.expectingJimmy === true, label: 'lock the door' },
+        ],
+      },
+    ],
+    confront_follower: confrontFollowerPlans(),
     wait_in_suite: [{ id: 'SitInSuite3', steps: idlePlan('suite3', 'sitting') }],
   },
   reactions: [

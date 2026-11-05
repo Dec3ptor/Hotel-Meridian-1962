@@ -4,7 +4,7 @@ import { setBelief } from '../../sim/agents/beliefs';
 import { after, othersIn } from '../../sim/query';
 import { storyletRan } from '../../sim/storylets';
 import type { CharacterDef } from '../../sim/types';
-import { idlePlan, knockedRecently, pillsAvailable, trayConsumed, trayInKitchen } from './common';
+import { answerDoorGoal, answerDoorPlans, confrontFollowerGoal, confrontFollowerPlans, confrontIntruderGoal, idlePlan, pillsAvailable, trayConsumed, trayInKitchen } from './common';
 
 /**
  * Vivian Lane, 47, registered as "Mrs. V. Marsh". She was driving in 1949.
@@ -50,13 +50,9 @@ export const vivian: CharacterDef = {
       priority: (w, a) => (a.mood.fear >= 8 && !storyletRan(w, 'voss_settlement') ? 90 : 0),
       persistent: true,
     },
-    {
-      id: 'answer_door',
-      name: 'answer the door on the chain',
-      priority: 80,
-      persistent: true,
-      active: (w, a) => a.room === 'suite1' && knockedRecently(w, a, 'suite1_door'),
-    },
+    answerDoorGoal('suite1', 'suite1_door'),
+    confrontIntruderGoal('suite1'),
+    confrontFollowerGoal(),
     {
       id: 'attend_settlement',
       name: 'go to Suite 3 with the money',
@@ -100,18 +96,18 @@ export const vivian: CharacterDef = {
         ],
       },
     ],
-    answer_door: [
+    answer_door: answerDoorPlans('suite1', 'suite1_door'),
+    confront_intruder: [
       {
-        id: 'OnTheChain',
+        id: 'GetOutOrIScream',
         steps: [
-          { do: 'goTo', args: { room: 'suite1', spot: 'door_inside' }, label: 'to the door' },
-          { do: 'wait', minutes: 1.5, label: 'speak through the chain' },
+          { do: 'talk', args: { to: 'player', topic: 'get_out', near: 2, interrupt: true }, label: 'tell them to get out' },
+          { do: 'wait', until: (w, a) => a.beliefs['whereIs:player']?.value !== 'suite1', minutes: 2, label: 'see them out' },
+          { do: 'use', args: { target: 'suite1_door', action: 'lock' }, skipIf: (w, a) => a.beliefs['whereIs:player']?.value === 'suite1', label: 'lock the door' },
         ],
-        onComplete: (w, a) => {
-          a.flags.lastKnockAnswered = Number(a.beliefs['knock:suite1_door']?.value ?? w.tick);
-        },
       },
     ],
+    confront_follower: confrontFollowerPlans(),
     attend_settlement: [
       {
         id: 'BringTheMoney',

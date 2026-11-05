@@ -91,6 +91,7 @@ export function createWorld(s: Static, seed: number, loop = 1): World {
       visibleMask: 0,
       reactionCooldowns: {},
       lastItemScanTick: -1000,
+      pending: [],
     };
   });
   w.log.push({ type: 'LoopStarted', tick: 0, seed, loop });

@@ -1,7 +1,9 @@
 import { after, believes, dist, inRoom, has } from '../../sim/query';
 import { storyletRan } from '../../sim/storylets';
 import type { CharacterDef, CharacterId } from '../../sim/types';
-import { bellRecently, idlePlan, looseItemOnFloor } from './common';
+import { setBelief } from '../../sim/agents/beliefs';
+import { adjustMood } from '../../sim/agents/mood';
+import { bellRecently, confrontFollowerGoal, confrontFollowerPlans, confrontIntruderGoal, confrontIntruderPlans, idlePlan, looseItemOnFloor } from './common';
 
 const GUESTS: CharacterId[] = ['ruth', 'jimmy', 'vivian', 'hale', 'voss', 'player'];
 
@@ -93,6 +95,8 @@ export const walter: CharacterDef = {
       priority: 50,
       notBefore: '1:56',
     },
+    confrontIntruderGoal('office'),
+    confrontFollowerGoal(),
     { id: 'idle', name: 'mind the desk', priority: 1, persistent: true },
   ],
   plans: {
@@ -198,9 +202,25 @@ export const walter: CharacterDef = {
         ],
       },
     ],
+    confront_intruder: confrontIntruderPlans(),
+    confront_follower: confrontFollowerPlans(),
     idle: [{ id: 'MindTheDesk', steps: idlePlan('lobby', 'desk_back') }],
   },
   reactions: [
+    {
+      id: 'walter_suspects_player',
+      on: ['saw_body', 'saw_agent'],
+      when: (w, a, p) => {
+        if (p.kind === 'saw_body') return p.who === 'voss' && a.beliefs['whereIs:player']?.value === 'suite3' && w.tick - (a.beliefs['whereIs:player']?.tick ?? -999) <= 25;
+        return p.kind === 'saw_agent' && p.who === 'player' && (p.weapon === 'kitchen_knife' || (p.blood && after(w, '1:30')));
+      },
+      do: (w, a, p, ctx) => {
+        setBelief(w, a.id, 'playerSuspect', true, 0.9, 'seen');
+        adjustMood(w, a.id, 'suspicion', 3, 'the guest from Room 7, at a time like this');
+        ctx.decide('the guest from Room 7 is in this up to the neck');
+      },
+      once: true,
+    },
     {
       id: 'walter_hears_scream',
       on: 'heard',

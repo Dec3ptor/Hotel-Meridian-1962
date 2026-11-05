@@ -376,6 +376,19 @@ export function attack(w: World, attackerId: CharacterId, targetId: CharacterId,
   return outcome;
 }
 
+/** An agent leaves the premises (drives off); they stay in the cast but are out of play. */
+export function leave(w: World, agentId: CharacterId, how: string): void {
+  const a = w.agents[agentId]!;
+  a.flags.left = true;
+  a.hiddenIn = undefined;
+  a.current = undefined;
+  a.path.length = 0;
+  a.pathTarget = -1;
+  a.busyUntil = undefined;
+  emit(w, { type: 'Left', tick: w.tick, agent: agentId, how });
+  decide(w, agentId, `leaves: ${how}`);
+}
+
 /** Sleeping pills in a drink: drowsy after a while, dead after a double dose. */
 export function drug(w: World, agentId: CharacterId, doses: number): void {
   const a = w.agents[agentId]!;

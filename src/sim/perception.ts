@@ -22,7 +22,7 @@ export type Sight = 0 | 1 | 2;
 export function sight(w: World, s: Static, observer: AgentState, target: AgentState): Sight {
   if (observer === target) return 0;
   if (!observer.alive || observer.incapacity === 'asleep') return 0;
-  if (target.hiddenIn) return 0;
+  if (target.hiddenIn || target.flags.left || observer.flags.left) return 0;
   if (observer.hiddenIn && observer.room !== target.room) return 0;
   const nav = s.nav;
   if (observer.room !== target.room) {
@@ -163,9 +163,9 @@ export function canHear(w: World, s: Static, listener: AgentState, sound: SoundR
     }
     return true;
   }
+  if (listener.flags.listeningRoom === sound.room) return true;
   const att = cachedAttenuation(w, s, sound.room, listener.room, scratch);
-  const bonus = listener.flags.listening ? 1 : 0;
-  return sound.loudness + bonus - att >= 1;
+  return sound.loudness - att >= 1;
 }
 
 /** Room-to-room attenuation, memoised until a door changes state. */

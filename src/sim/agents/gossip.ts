@@ -42,7 +42,7 @@ export function gossipPass(w: World, s: Static): void {
   const order = s.characterOrder;
   for (let i = 0; i < order.length; i++) {
     const a = w.agents[order[i]!]!;
-    if (!a.alive || a.incapacity || a.hiddenIn || a.id === 'player') continue;
+    if (!a.alive || a.incapacity || a.hiddenIn || a.flags.left || a.id === 'player') continue;
     if (a.busyUntil !== undefined && w.tick < a.busyUntil) continue;
     for (let j = 0; j < order.length; j++) {
       if (i === j) continue;

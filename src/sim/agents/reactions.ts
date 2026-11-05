@@ -53,6 +53,20 @@ function genericReactions(w: World, s: Static, a: AgentState, p: Percept): void 
       return;
     }
     case 'saw_agent': {
+      if (p.who === 'player' && p.isNew && a.id !== 'player') {
+        const trail = String(a.flags.playerTrail ?? '');
+        const entries = trail ? trail.split(';').filter(Boolean) : [];
+        entries.push(`${p.room}@${w.tick}`);
+        const recent = entries.filter((e) => w.tick - Number(e.split('@')[1]) <= minutesToTick(6)).slice(-6);
+        a.flags.playerTrail = recent.join(';');
+        const rooms = new Set(recent.map((e) => e.split('@')[0]));
+        if (rooms.size >= 3 && !onCooldown(w, a, 'followed', 15)) {
+          setBelief(w, a.id, 'followedBy:player', true, 0.8, 'inferred');
+          adjustMood(w, a.id, 'suspicion', 2, 'that guest keeps turning up');
+          decide(w, a.id, 'the guest from Room 7 is following me');
+          emit(w, { type: 'Reaction', tick: w.tick, agent: a.id, reaction: 'noticed_being_followed', percept: 'saw player again' });
+        }
+      }
       if (p.blood && !onCooldown(w, a, `blood:${p.who}`, 20)) {
         adjustMood(w, a.id, 'fear', 3, `${p.who} has blood on them`);
         adjustMood(w, a.id, 'suspicion', 2, `${p.who} has blood on them`);

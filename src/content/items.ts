@@ -3,7 +3,7 @@
  * with a location). Uses are small effect functions; the engine handles the
  * approach, the event and the busy time.
  */
-import { drug, moveItem, setFixtureState, setItemState } from '../sim/actions';
+import { drug, leave, moveItem, setFixtureState, setFlag, setItemState } from '../sim/actions';
 import { adjustMood } from '../sim/agents/mood';
 import { believes } from '../sim/query';
 import type { FixtureDef, ItemDef } from '../sim/types';
@@ -353,6 +353,16 @@ export const fixtures: FixtureDef[] = [
     blocking: true,
     container: true,
     description: 'A black Cadillac, new this year, parked nose-out.',
+    uses: {
+      drive: {
+        minutes: 0.5,
+        requiresItem: 'cadillac_keys',
+        effect: (w, who) => {
+          setFlag(w, 'cadillacDrivenBy', who);
+          leave(w, who, 'drives off in the Cadillac');
+        },
+      },
+    },
   },
   {
     id: 'vivian_car',
@@ -635,6 +645,7 @@ export const items: ItemDef[] = [
     state: { written: false },
     uses: { write: { minutes: 3, effect: (w, who) => setItemState(w, 'telegram', 'written', true, who) } },
   },
+  { id: 'cadillac_keys', name: 'Cadillac keys', description: 'Keys on a Cadillac fob.', portable: true, concealable: true, start: { kind: 'agent', agent: 'voss', concealed: true } },
   { id: 'voss_pistol', name: 'small pistol', description: 'A small automatic pistol, the kind that fits a coat pocket.', portable: true, weapon: 'gun', loaded: true, concealable: true, start: { kind: 'agent', agent: 'voss', concealed: true } },
   {
     id: 'suite3_towel',

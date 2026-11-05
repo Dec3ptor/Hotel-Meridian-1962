@@ -98,6 +98,13 @@ export interface GoalProgress {
 
 export type Incapacity = 'drowsy' | 'asleep' | 'dead';
 
+/** A queued player verb, executed when the player reaches its target. */
+export interface PendingAction {
+  action: string;
+  args: Record<string, Scalar>;
+  queuedTick: number;
+}
+
 export interface AgentState {
   id: CharacterId;
   pos: TilePos;
@@ -124,6 +131,8 @@ export interface AgentState {
   visibleMask: number; // bitmask of agent indexes currently visible (for Saw transitions)
   reactionCooldowns: Record<string, number>;
   lastItemScanTick: number;
+  /** Player only: verbs waiting to be carried out, in order. */
+  pending: PendingAction[];
 }
 
 export interface Decision {
@@ -240,6 +249,15 @@ export type WorldEvent =
   | { type: 'MoodChanged'; tick: number; agent: CharacterId; key: MoodKey; from: number; to: number; reason: string }
   | { type: 'Reaction'; tick: number; agent: CharacterId; reaction: string; percept: string }
   | { type: 'Bloodied'; tick: number; agent: CharacterId }
+  | { type: 'Looked'; tick: number; agent: CharacterId; target: string; text: string; close: boolean }
+  | { type: 'ClueFound'; tick: number; fact: FactKey; source: string; text: string }
+  | { type: 'Searched'; tick: number; agent: CharacterId; target: string; found: ItemId[] }
+  | { type: 'PickpocketFailed'; tick: number; agent: CharacterId; holder: CharacterId; item: ItemId }
+  | { type: 'ActionDone'; tick: number; action: string; target?: string }
+  | { type: 'ActionFailed'; tick: number; action: string; target?: string; reason: string }
+  | { type: 'Listening'; tick: number; agent: CharacterId; at: string; room: RoomId }
+  | { type: 'Threatened'; tick: number; agent: CharacterId; by: CharacterId; weapon?: ItemId }
+  | { type: 'Left'; tick: number; agent: CharacterId; how: string }
   | { type: 'LoopEnded'; tick: number; reason: string; ending?: EndingId };
 
 export type EventType = WorldEvent['type'];
@@ -359,6 +377,9 @@ export interface FixtureDef {
   uses?: Record<string, UseDef>;
   description: string;
   state?: Record<string, Scalar>;
+  /** Clue facts learned by looking closely. */
+  proves?: FactKey[];
+  clueText?: string;
 }
 
 export interface ItemDef {
@@ -376,6 +397,8 @@ export interface ItemDef {
   uses?: Record<string, UseDef>;
   /** Clue facts this item proves when examined. */
   proves?: FactKey[];
+  /** Short notebook text for the clue (defaults to the description). */
+  clueText?: string;
 }
 
 export type Cond = (w: World, a: AgentState) => boolean;
@@ -490,6 +513,8 @@ export interface CharacterDef {
 
 export type StoryletTrigger =
   | { topic: string }
+  | { ask: string }
+  | { tell: FactKey }
   | { show: ItemId }
   | { give: ItemId }
   | { accuse: 'killer' | 'driver' }
@@ -504,6 +529,8 @@ export interface StoryletDef {
   trigger: StoryletTrigger;
   when?: (w: World, speaker: AgentState, listener: AgentState | undefined) => boolean;
   lines: StoryletLine[];
+  /** Alternative line sets used on repeat plays so answers do not feel canned. */
+  variants?: StoryletLine[][];
   effects?: (w: World, speaker: AgentState, listener: AgentState | undefined, ctx: StoryletContext) => void;
   priority: number;
   /** Game minutes both parties are busy. Defaults to a function of line count. */

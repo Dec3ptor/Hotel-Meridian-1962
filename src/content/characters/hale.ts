@@ -1,8 +1,8 @@
 import { adjustMood } from '../../sim/agents/mood';
 import { setBelief } from '../../sim/agents/beliefs';
-import { after, alive, believes, hasWeapon, othersIn } from '../../sim/query';
+import { after, alive, believes, dist, hasWeapon, inRoom, othersIn } from '../../sim/query';
 import type { CharacterDef } from '../../sim/types';
-import { believedIn, idlePlan } from './common';
+import { believedIn, confrontFollowerGoal, confrontFollowerPlans, confrontIntruderGoal, confrontIntruderPlans, idlePlan, sawRecently } from './common';
 
 /**
  * Colonel Arthur Hale, 66, retired. He has followed Voss across three states
@@ -38,6 +38,29 @@ export const hale: CharacterDef = {
   inventory: ['suite2_key'],
   chattiness: 0.02,
   goals: [
+    {
+      id: 'silence_witness',
+      name: 'silence the witness',
+      priority: 95,
+      urgent: true,
+      active: (w, a) => a.flags['killed:voss'] === true && a.room !== 'suite2' && alive(w, 'player') && sawRecently(w, a, 'player', 0.5) && !a.flags.witnessEscaped,
+    },
+    {
+      id: 'flee_in_cadillac',
+      name: 'get away in the Cadillac',
+      priority: 94,
+      active: (w, a) => a.flags.witnessEscaped === true && alive(w, 'player'),
+    },
+    {
+      id: 'confront_driver',
+      name: 'face the one who was driving',
+      priority: 80,
+      notBefore: '11:35',
+      active: (w, a) => alive(w, 'vivian') && believes(w, a.id, 'driverOf1949', 'vivian', 0.7) && !believes(w, a.id, 'vivianConfessed', true, 0.5),
+      done: (w, a) => believes(w, a.id, 'vivianConfessed', true, 0.5) || !alive(w, 'vivian'),
+    },
+    confrontIntruderGoal('suite2'),
+    confrontFollowerGoal(),
     {
       id: 'kill_voss',
       name: 'make Voss pay for Clara',
@@ -84,6 +107,68 @@ export const hale: CharacterDef = {
     { id: 'idle', name: 'sit in Suite 2', priority: 1, persistent: true },
   ],
   plans: {
+    silence_witness: [
+      {
+        id: 'KillTheWitness',
+        steps: [{ do: 'attack', args: { target: 'player' }, deadline: undefined, label: 'no witnesses' }],
+        onFail: (w, a) => {
+          a.flags.witnessEscaped = true;
+        },
+      },
+    ],
+    flee_in_cadillac: [
+      {
+        id: 'TakeTheCadillac',
+        steps: [
+          { do: 'take', args: { item: 'cadillac_keys' }, skipIf: (w, a) => a.inventory.includes('cadillac_keys'), label: 'the keys from his coat' },
+          { do: 'goTo', args: { fixture: 'cadillac' }, label: 'out to the Cadillac' },
+          { do: 'use', args: { target: 'cadillac', action: 'drive' }, label: 'drive' },
+        ],
+      },
+      {
+        id: 'HoleUpInSuite2',
+        steps: [
+          { do: 'goTo', args: { room: 'suite2', spot: 'door_inside' }, label: 'back to Suite 2' },
+          { do: 'lock', args: { door: 'suite2_door' }, label: 'lock the door' },
+          { do: 'wait', minutes: 60, label: 'wait for the morning' },
+        ],
+      },
+    ],
+    confront_driver: [
+      {
+        id: 'ConfrontVivian',
+        steps: [
+          { do: 'goTo', args: { room: 'corridor', spot: 'outside_suite1' }, label: 'along to Suite 1' },
+          { do: 'use', args: { target: 'suite1_door', action: 'knock' }, skipIf: (w) => !w.doors.suite1_door!.locked && w.doors.suite1_door!.open, label: 'knock' },
+          { do: 'wait', until: (w, a) => inRoom(w, 'vivian', 'suite1') && dist(w, a.id, 'vivian') <= 2, minutes: 4, label: 'wait for her to open' },
+          { do: 'talk', args: { to: 'vivian', topic: 'clara_hale', near: 2, interrupt: true }, if: (w, a) => dist(w, a.id, 'vivian') <= 2, ifReason: 'she will not come to the door', label: 'Clara Hale' },
+          {
+            do: 'attack',
+            args: { target: 'vivian' },
+            if: (w, a) => a.mood.anger >= 8 && hasWeapon(w, a.id) !== undefined && !believes(w, a.id, 'vivianConfessed', true, 0.5),
+            ifReason: 'he cannot raise his hand to her',
+            label: 'the knife, for Clara',
+          },
+          { do: 'goTo', args: { room: 'suite2', spot: 'default' }, label: 'back to Suite 2' },
+        ],
+      },
+      {
+        id: 'FindHerWhereverSheIs',
+        steps: [
+          { do: 'talk', args: { to: 'vivian', topic: 'clara_hale', near: 2, interrupt: true }, deadline: undefined, label: 'Clara Hale' },
+          {
+            do: 'attack',
+            args: { target: 'vivian' },
+            if: (w, a) => a.mood.anger >= 8 && hasWeapon(w, a.id) !== undefined && !believes(w, a.id, 'vivianConfessed', true, 0.5),
+            ifReason: 'he cannot raise his hand to her',
+            label: 'the knife, for Clara',
+          },
+          { do: 'goTo', args: { room: 'suite2', spot: 'default' }, label: 'back to Suite 2' },
+        ],
+      },
+    ],
+    confront_intruder: confrontIntruderPlans(),
+    confront_follower: confrontFollowerPlans(),
     kill_voss: [
       {
         id: 'AmbushFromAlcove',
@@ -128,8 +213,8 @@ export const hale: CharacterDef = {
           { do: 'goTo', args: { room: 'corridor', spot: 'outside_suite3' }, label: 'to Suite 3' },
           { do: 'use', args: { target: 'suite3_door', action: 'knock' }, label: 'knock' },
           { do: 'wait', until: (w) => !w.doors.suite3_door!.locked, minutes: 3, label: 'wait for the door' },
-          { do: 'goTo', args: { room: 'suite3', spot: 'sitting', near: 1 }, if: (w) => !w.doors.suite3_door!.locked, ifReason: 'he will not open the door', label: 'go in' },
-          { do: 'attack', args: { target: 'voss' }, label: 'face him' },
+          { do: 'goTo', args: { room: 'suite3', spot: 'sitting', near: 1 }, if: (w, a) => !w.doors.suite3_door!.locked && believedIn(w, a, 'suite3', ['voss']).length === 0, ifReason: 'he will not open the door, or he is not alone', label: 'go in' },
+          { do: 'attack', args: { target: 'voss' }, if: (w, a) => believedIn(w, a, 'suite3', ['voss']).length === 0, ifReason: 'someone else is in Suite 3', label: 'face him' },
           { do: 'goTo', args: { room: 'suite2', spot: 'default' }, label: 'back to Suite 2' },
         ],
       },

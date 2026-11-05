@@ -58,6 +58,8 @@ const cache = new WeakMap<Content, Static>();
 export function storyletKey(s: StoryletDef): string {
   const t = s.trigger;
   if ('topic' in t) return `${s.speaker}|topic|${t.topic}`;
+  if ('ask' in t) return `${s.speaker}|ask|${t.ask}`;
+  if ('tell' in t) return `${s.speaker}|tell|${t.tell}`;
   if ('show' in t) return `${s.speaker}|show|${t.show}`;
   if ('give' in t) return `${s.speaker}|give|${t.give}`;
   if ('accuse' in t) return `${s.speaker}|accuse|${t.accuse}`;

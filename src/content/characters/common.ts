@@ -5,7 +5,7 @@
 import { minutesToTick } from '../../sim/clock';
 import { itemLooseInRoom, itemRoom } from '../../sim/query';
 import { S } from '../../sim/registry';
-import type { AgentState, CharacterId, ItemId, PlanStep, RoomId, World } from '../../sim/types';
+import type { AgentState, CharacterId, GoalDef, ItemId, PlanDef, PlanStep, RoomId, World } from '../../sim/types';
 
 /** A knock at `door` heard since the agent last answered one. */
 export function knockedRecently(w: World, a: AgentState, door: string, withinMinutes = 3): boolean {
@@ -84,6 +84,94 @@ export function looseItemOnFloor(w: World, room: RoomId): ItemId | undefined {
     if (itemRoom(w, id) === room) return id;
   }
   return undefined;
+}
+
+/** The player was seen in my room within the last minute and is still there. */
+export function intruderPresent(w: World, a: AgentState, room: RoomId): boolean {
+  const b = a.beliefs['intruded:player'];
+  if (!b || w.tick - b.tick > minutesToTick(1)) return false;
+  const where = a.beliefs['whereIs:player'];
+  return a.room === room && !!where && where.value === room && w.tick - where.tick <= minutesToTick(0.5);
+}
+
+/** Confront a guest who is where they should not be. */
+export function confrontIntruderGoal(room: RoomId): GoalDef {
+  return {
+    id: 'confront_intruder',
+    name: 'see off an intruder',
+    priority: 86,
+    persistent: true,
+    repeatAfter: 1.5,
+    active: (w, a) => intruderPresent(w, a, room),
+  };
+}
+
+export function confrontIntruderPlans(): PlanDef[] {
+  return [
+    {
+      id: 'TellThemToLeave',
+      steps: [{ do: 'talk', args: { to: 'player', topic: 'get_out', near: 2, interrupt: true }, deadline: undefined, label: 'tell them to get out' }],
+    },
+  ];
+}
+
+export function confrontFollowerGoal(): GoalDef {
+  return {
+    id: 'confront_follower',
+    name: 'shake off a tail',
+    priority: 70,
+    persistent: true,
+    repeatAfter: 10,
+    active: (w, a) => a.beliefs['followedBy:player']?.value === true && !!w.agents.player && w.agents.player.alive && w.agents.player.room === a.room,
+  };
+}
+
+export function confrontFollowerPlans(): PlanDef[] {
+  return [
+    {
+      id: 'AskWhyFollowing',
+      steps: [{ do: 'talk', args: { to: 'player', topic: 'being_followed', near: 2 }, label: 'ask why they are following' }],
+      onComplete: (w, a) => {
+        delete a.beliefs['followedBy:player'];
+      },
+      onFail: (w, a) => {
+        delete a.beliefs['followedBy:player'];
+      },
+    },
+  ];
+}
+
+/** Answer a knock at my door: unlock, open, listen, close and lock again. */
+export function answerDoorGoal(room: RoomId, door: string): GoalDef {
+  return {
+    id: 'answer_door',
+    name: 'answer the door',
+    priority: 80,
+    persistent: true,
+    active: (w, a) => a.room === room && knockedRecently(w, a, door),
+  };
+}
+
+export function answerDoorPlans(room: RoomId, door: string, minutes = 1.5): PlanDef[] {
+  return [
+    {
+      id: 'OpenUp',
+      steps: [
+        { do: 'goTo', args: { room, spot: 'door_inside' }, label: 'go to the door' },
+        { do: 'use', args: { target: door, action: 'unlock' }, label: 'unlock' },
+        { do: 'use', args: { target: door, action: 'open' }, label: 'open' },
+        { do: 'wait', minutes, label: 'see who it is' },
+        { do: 'use', args: { target: door, action: 'close' }, label: 'close the door', skipIf: (w, a) => a.flags.leaveDoorOpen === true },
+        { do: 'use', args: { target: door, action: 'lock' }, label: 'lock it', skipIf: (w, a) => a.flags.leaveDoorOpen === true },
+      ],
+      onComplete: (w, a) => {
+        a.flags.lastKnockAnswered = Number(a.beliefs[`knock:${door}`]?.value ?? w.tick);
+      },
+      onFail: (w, a) => {
+        a.flags.lastKnockAnswered = Number(a.beliefs[`knock:${door}`]?.value ?? w.tick);
+      },
+    },
+  ];
 }
 
 export function idlePlan(room: RoomId, spot: string): PlanStep[] {

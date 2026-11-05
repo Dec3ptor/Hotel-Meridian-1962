@@ -2,7 +2,7 @@ import { adjustMood } from '../../sim/agents/mood';
 import { believes, dist, inRoom } from '../../sim/query';
 import { storyletRan } from '../../sim/storylets';
 import type { CharacterDef } from '../../sim/types';
-import { idlePlan } from './common';
+import { answerDoorGoal, answerDoorPlans, confrontFollowerGoal, confrontFollowerPlans, confrontIntruderGoal, confrontIntruderPlans, idlePlan } from './common';
 
 /**
  * Jimmy Doyle, 28, "salesman", actually Voss's photographer. He befriended
@@ -61,6 +61,9 @@ export const jimmy: CharacterDef = {
       notBefore: '10:57',
       deadline: '11:20',
     },
+    answerDoorGoal('room6', 'room6_door'),
+    confrontIntruderGoal('room6'),
+    confrontFollowerGoal(),
     { id: 'idle', name: 'stay in Room 6', priority: 1, persistent: true },
   ],
   plans: {
@@ -113,6 +116,9 @@ export const jimmy: CharacterDef = {
         ],
       },
     ],
+    answer_door: answerDoorPlans('room6', 'room6_door'),
+    confront_intruder: confrontIntruderPlans(),
+    confront_follower: confrontFollowerPlans(),
     idle: [{ id: 'StayInRoom6', steps: idlePlan('room6', 'default') }],
   },
   reactions: [

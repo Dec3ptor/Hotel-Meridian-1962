@@ -8,7 +8,9 @@ import { setBelief } from '../../sim/agents/beliefs';
 import { adjustMood } from '../../sim/agents/mood';
 import type { StoryletDef } from '../../sim/types';
 
-export const storylets: StoryletDef[] = [
+import { playerStorylets } from './player';
+
+const nightStorylets: StoryletDef[] = [
   // --- Walter ---------------------------------------------------------------
   {
     id: 'walter_no_way_out',
@@ -296,3 +298,5 @@ export const storylets: StoryletDef[] = [
     priority: 0,
   },
 ];
+
+export const storylets: StoryletDef[] = [...nightStorylets, ...playerStorylets];

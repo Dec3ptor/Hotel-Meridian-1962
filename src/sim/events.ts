@@ -136,6 +136,24 @@ export function describeEvent(ev: WorldEvent): string {
       return `${ev.agent} reacts (${ev.reaction}) to ${ev.percept}.`;
     case 'Bloodied':
       return `${ev.agent} has blood on them.`;
+    case 'Looked':
+      return `${ev.agent} looks at ${ev.target}${ev.close ? '' : ' from a distance'}: ${ev.text}`;
+    case 'ClueFound':
+      return `Clue: ${ev.fact} (${ev.source}): ${ev.text}`;
+    case 'Searched':
+      return `${ev.agent} searches ${ev.target}: ${ev.found.length ? ev.found.join(', ') : 'nothing'}.`;
+    case 'PickpocketFailed':
+      return `${ev.agent} is caught trying to take ${ev.item} from ${ev.holder}.`;
+    case 'ActionDone':
+      return `${ev.action}${ev.target ? ` ${ev.target}` : ''}: done.`;
+    case 'ActionFailed':
+      return `${ev.action}${ev.target ? ` ${ev.target}` : ''}: ${ev.reason}.`;
+    case 'Listening':
+      return `${ev.agent} listens at ${ev.at} (${ev.room}).`;
+    case 'Threatened':
+      return `${ev.by} threatens ${ev.agent}${ev.weapon ? ` with ${ev.weapon}` : ''}.`;
+    case 'Left':
+      return `${ev.agent} ${ev.how}.`;
     case 'LoopEnded':
       return `Loop ends: ${ev.reason}${ev.ending ? ` [${ev.ending}]` : ''}.`;
   }

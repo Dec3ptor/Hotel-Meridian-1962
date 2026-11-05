@@ -4,6 +4,7 @@
  * no renderer; rendering, audio and UI subscribe to the event bus.
  */
 import { tickIncapacity } from './actions';
+import { applyCommand, playerTick } from './commands';
 import { gossipPass } from './agents/gossip';
 import { decayMoods } from './agents/mood';
 import { think } from './agents/planner';
@@ -36,6 +37,7 @@ export class Sim {
     activate(this.s, this.bus);
     this.world = createWorld(this.s, seed, loop);
     this.scratch = createScratch(this.s);
+    this.commandHandler = applyCommand;
   }
 
   /** Phase 2 installs the verb dispatcher here. */
@@ -96,6 +98,8 @@ export class Sim {
     }
     w.pendingSounds.length = 0;
     w.pendingGestures.length = 0;
+    // The player acts first so agents see the result next tick.
+    playerTick(w, this.s);
     // 3-5: re-rank, check, act.
     for (let i = 0; i < order.length; i++) {
       const id = order[i]!;

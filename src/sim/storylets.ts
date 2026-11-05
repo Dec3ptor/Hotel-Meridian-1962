@@ -30,7 +30,10 @@ export function runStorylet(w: World, st: StoryletDef, speaker: AgentState, list
   const s = S();
   const nav = s.nav;
   const to: CharacterId | 'all' = listener ? listener.id : 'all';
-  for (const line of st.lines) {
+  const played = Number(w.flags[`storyletCount:${st.id}`] ?? 0);
+  const sets = st.variants && st.variants.length > 0 ? [st.lines, ...st.variants] : [st.lines];
+  const lines = sets[played % sets.length]!;
+  for (const line of lines) {
     if (typeof line === 'string') {
       emit(w, { type: 'Narration', tick: w.tick, storylet: st.id, text: line, room: speaker.room });
       continue;
@@ -57,7 +60,7 @@ export function runStorylet(w: World, st: StoryletDef, speaker: AgentState, list
   w.flags[`storylet:${st.id}`] = w.tick;
   const count = Number(w.flags[`storyletCount:${st.id}`] ?? 0) + 1;
   w.flags[`storyletCount:${st.id}`] = count;
-  const minutes = st.minutes ?? Math.max(0.5, st.lines.length * 0.4);
+  const minutes = st.minutes ?? Math.max(0.5, lines.length * 0.4);
   return { ok: true, minutes, storylet: st.id };
 }
 
@@ -87,7 +90,7 @@ export function converse(w: World, speakerId: CharacterId, listenerId: Character
 }
 
 /** Showing or giving an item, or accusing: the listener is the speaker of the response. */
-export function respondTo(w: World, responderId: CharacterId, kind: 'show' | 'give' | 'accuse', key: string, byId: CharacterId): TalkResult {
+export function respondTo(w: World, responderId: CharacterId, kind: 'show' | 'give' | 'accuse' | 'ask' | 'tell', key: string, byId: CharacterId): TalkResult {
   const s = S();
   const responder = w.agents[responderId]!;
   const by = w.agents[byId];

@@ -1,10 +1,10 @@
 import { soundAtAgent } from '../../sim/actions';
 import { adjustMood } from '../../sim/agents/mood';
 import { setBelief } from '../../sim/agents/beliefs';
-import { after, before, believes, dist, inRoom } from '../../sim/query';
+import { after, alive, before, believes, dist, inRoom } from '../../sim/query';
 import { storyletRan } from '../../sim/storylets';
 import type { CharacterDef } from '../../sim/types';
-import { idlePlan, seenSince } from './common';
+import { confrontFollowerGoal, confrontFollowerPlans, idlePlan, seenSince } from './common';
 
 /**
  * Ruth Carter, 24. Adopted; found a birth certificate naming Vivian Lane.
@@ -49,6 +49,14 @@ export const ruth: CharacterDef = {
       active: (w, a) => believes(w, a.id, 'bloody:jimmy', true, 0.5) && !storyletRan(w, 'ruth_jimmy_blood'),
     },
     {
+      id: 'confront_jimmy_voss',
+      name: 'ask Jimmy if he works for Voss',
+      priority: 62,
+      active: (w, a) => believes(w, a.id, 'jimmyWorksForVoss', true, 0.5) && alive(w, 'jimmy'),
+      done: (w) => storyletRan(w, 'ruth_confronts_jimmy_voss'),
+    },
+    confrontFollowerGoal(),
+    {
       id: 'confront_jimmy',
       name: 'have it out with Jimmy',
       priority: 60,
@@ -76,11 +84,24 @@ export const ruth: CharacterDef = {
       priority: 50,
       notBefore: '10:42',
       persistent: true,
-      active: (w, a) => !believes(w, a.id, 'walterWontTell', true, 0.5) || (after(w, '11:55') && !a.flags.knockedOnSuite1),
+      active: (w, a) =>
+        !believes(w, a.id, 'walterWontTell', true, 0.5) ||
+        (after(w, '11:55') && !a.flags.knockedOnSuite1) ||
+        (believes(w, a.id, 'vivianIsInSuite1', true, 0.5) && believes(w, a.id, 'vivianIsMrsMarsh', true, 0.5) && !storyletRan(w, 'ruth_meets_vivian') && !a.flags.triedSuite1Again),
     },
     { id: 'idle', name: 'wait in Room 6', priority: 1, persistent: true },
   ],
   plans: {
+    confront_jimmy_voss: [
+      {
+        id: 'AskHimStraight',
+        steps: [
+          { do: 'goTo', args: { room: 'room6', spot: 'default' }, skipIf: (w, a) => a.beliefs['whereIs:jimmy']?.value !== 'room6', label: 'back to Room 6' },
+          { do: 'talk', args: { to: 'jimmy', topic: 'do_you_work_for_voss', near: 2, interrupt: true }, deadline: undefined, label: 'ask him straight' },
+        ],
+      },
+    ],
+    confront_follower: confrontFollowerPlans(),
     raise_alarm: [
       {
         id: 'TellWalter',
@@ -133,6 +154,24 @@ export const ruth: CharacterDef = {
           { do: 'talk', args: { to: 'walter', topic: 'mrs_marsh_room', near: 2 }, deadline: '11:00', label: 'ask which room' },
           { do: 'goTo', args: { room: 'room6', spot: 'default' }, label: 'back to Room 6' },
         ],
+      },
+      {
+        id: 'GoToHerAsHerDaughter',
+        if: (w, a) => believes(w, a.id, 'vivianIsInSuite1', true, 0.5) && believes(w, a.id, 'vivianIsMrsMarsh', true, 0.5) && !a.flags.triedSuite1Again && a.flags.knockedOnSuite1 === true,
+        ifReason: 'no reason to try Suite 1 again',
+        steps: [
+          { do: 'goTo', args: { room: 'corridor', spot: 'outside_suite1' }, label: 'up to Suite 1' },
+          { do: 'use', args: { target: 'suite1_door', action: 'knock' }, label: 'knock' },
+          { do: 'wait', until: (w, a) => dist(w, a.id, 'vivian') <= 2, minutes: 4, label: 'wait for an answer' },
+          { do: 'talk', args: { to: 'vivian', topic: 'i_am_your_daughter', near: 2, interrupt: true }, if: (w, a) => dist(w, a.id, 'vivian') <= 2, ifReason: 'she did not open the door', label: 'tell her who I am' },
+          { do: 'goTo', args: { room: 'room6', spot: 'default' }, label: 'back to Room 6' },
+        ],
+        onComplete: (w, a) => {
+          a.flags.triedSuite1Again = true;
+        },
+        onFail: (w, a) => {
+          a.flags.triedSuite1Again = true;
+        },
       },
       {
         id: 'KnockOnSuite1',

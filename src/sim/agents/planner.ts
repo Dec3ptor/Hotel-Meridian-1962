@@ -368,7 +368,7 @@ function target(cell: number, near: number, what: string): Approach {
 }
 
 /** Resolve a goTo-style target. The returned object is a shared scratch: use it before the next call. */
-function approachCell(w: World, s: Static, a: AgentState, step: PlanStep): Approach | { fail: string } {
+export function approachCell(w: World, s: Static, a: AgentState, step: PlanStep): Approach | { fail: string } {
   const fixture = argStr(w, a, step, 'fixture');
   if (fixture) {
     if (!s.fixtures[fixture]) return { fail: `unknown fixture ${fixture}` };
@@ -469,13 +469,32 @@ function execute(w: World, s: Static, a: AgentState, def: CharacterDef, step: Pl
       const item = argStr(w, a, step, 'item');
       if (!target) return { fail: 'use: no target' };
       if (s.doors[target]) {
-        if (action !== 'knock') return { fail: `doors only support 'knock' here, not '${action}'` };
         const t = approachCell(w, s, a, { ...step, args: { ...step.args, door: target } });
         if ('fail' in t) return t;
         const r = approach(w, s, a, step, t.cell, 0, target);
         if (r !== 'done') return r;
-        knock(w, a.id, target);
-        setBusy(w, a, 0.2, `knock ${target}`);
+        let ok = true;
+        switch (action) {
+          case 'knock':
+            knock(w, a.id, target);
+            break;
+          case 'open':
+            ok = openDoor(w, target, a.id);
+            break;
+          case 'close':
+            ok = closeDoor(w, target, a.id);
+            break;
+          case 'lock':
+            ok = lockDoor(w, target, a.id);
+            break;
+          case 'unlock':
+            ok = unlockDoor(w, target, a.id);
+            break;
+          default:
+            return { fail: `doors cannot be ${action}ed` };
+        }
+        if (!ok) return { fail: `cannot ${action} ${target}` };
+        setBusy(w, a, 0.2, `${action} ${target}`);
         return 'done';
       }
       let cell: number | undefined;
@@ -662,11 +681,13 @@ function stepPlan(w: World, s: Static, a: AgentState, def: CharacterDef, goal: G
     }
     if (w.tick < (step.nbTick ?? -1)) return;
     const result = execute(w, s, a, def, step, gs.stepStartedTick);
+    // The step may have killed, incapacitated or removed this very agent.
+    if (!a.alive || a.incapacity || !a.current || a.current.goal !== goal.id) return;
     if (result === 'continue') return;
     if (result === 'done') {
       gs.step++;
       gs.stepStartedTick = w.tick;
-      a.current!.step = gs.step;
+      a.current.step = gs.step;
       if (a.busyUntil !== undefined && w.tick < a.busyUntil) return;
       continue;
     }
@@ -677,7 +698,7 @@ function stepPlan(w: World, s: Static, a: AgentState, def: CharacterDef, goal: G
 
 /** One agent's turn: re-rank goals, check the active step, act. */
 export function think(w: World, s: Static, a: AgentState): void {
-  if (!a.alive || a.incapacity) return;
+  if (!a.alive || a.incapacity || a.flags.left) return;
   const def = s.characters[a.id];
   if (!def || def.goals.length === 0) return;
   let busy = a.busyUntil !== undefined && w.tick < a.busyUntil;
