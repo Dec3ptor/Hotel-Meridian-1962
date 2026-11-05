@@ -1,15 +1,30 @@
-// Phase 1 is headless. Rendering (Phase 3) will mount a PixiJS scene here.
-// For now the page confirms the simulation runs in the browser build.
-import './content';
-import { createSim } from './sim/sim';
-import { formatClock } from './sim/clock';
+import './ui/styles.css';
+import { Game } from './game/game';
 
-const app = document.getElementById('app');
-if (app) {
-  const sim = createSim({ seed: 1 });
-  sim.runNight();
-  const w = sim.world;
-  app.innerHTML = `<h1>The Meridian</h1><p>Headless night simulated to ${formatClock(w.tick)}. ` +
-    `${w.log.length} events, ${w.decisions.length} decisions. Ending: ${w.ended?.ending ?? 'none'}.</p>` +
-    `<p>Rendering arrives in Phase 3. Run <code>npm run sim</code> for the full logs.</p>`;
+declare global {
+  interface Window {
+    meridian?: Game;
+  }
 }
+
+async function main(): Promise<void> {
+  const appRoot = document.getElementById('app');
+  const uiRoot = document.getElementById('ui');
+  if (!appRoot || !uiRoot) throw new Error('Missing #app or #ui');
+  const params = new URLSearchParams(location.search);
+  const seed = Number(params.get('seed') ?? 1962);
+  const game = await Game.boot(appRoot, uiRoot, { seed: Number.isFinite(seed) ? seed : 1962 });
+  window.meridian = game;
+  game.start();
+}
+
+main().catch((err) => {
+  console.error(err);
+  const ui = document.getElementById('ui');
+  if (ui) {
+    const p = document.createElement('div');
+    p.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e8dcc0;font-family:monospace;padding:20px;text-align:center;pointer-events:auto';
+    p.textContent = `The Meridian could not start: ${err instanceof Error ? err.message : String(err)}`;
+    ui.appendChild(p);
+  }
+});
