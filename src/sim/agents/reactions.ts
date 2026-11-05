@@ -5,7 +5,7 @@
  * by changing moods and beliefs that goal priorities read.
  */
 import { minutesToTick } from '../clock';
-import { decide, emit, S, type Static } from '../registry';
+import { decide, emit, type Static } from '../registry';
 import type { AgentState, Percept, ReactionDef, World } from '../types';
 import { setBelief } from './beliefs';
 import { adjustMood } from './mood';
@@ -133,8 +133,4 @@ export function react(w: World, s: Static, a: AgentState, percepts: Percept[]): 
       r.do(w, a, p, { emit: (ev) => emit(w, ev), decide: (text) => decide(w, a.id, text) });
     }
   }
-}
-
-export function reactionKey(): typeof S {
-  return S;
 }

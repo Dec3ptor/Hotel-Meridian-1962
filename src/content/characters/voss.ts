@@ -1,5 +1,5 @@
 import { gesture } from '../../sim/actions';
-import { after, dist, inRoom, itemInRoom } from '../../sim/query';
+import { after, dist, inRoom } from '../../sim/query';
 import { storyletRan } from '../../sim/storylets';
 import type { CharacterDef } from '../../sim/types';
 import { idlePlan, knockedRecently, trayConsumed } from './common';
@@ -248,7 +248,3 @@ export const voss: CharacterDef = {
     },
   ],
 };
-
-export function vossIsDrowsy(w: Parameters<typeof itemInRoom>[0]): boolean {
-  return w.agents.voss?.incapacity === 'drowsy';
-}

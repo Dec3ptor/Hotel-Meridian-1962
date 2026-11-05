@@ -218,10 +218,6 @@ export function dist(w: World, a: CharacterId, b: CharacterId): number {
 }
 
 export function near(w: World, a: CharacterId, b: CharacterId, radius = 1): boolean {
-  const other = w.agents[b];
-  if (!other || !other.alive && radius < 2) {
-    // bodies can still be near
-  }
   return dist(w, a, b) <= radius;
 }
 
