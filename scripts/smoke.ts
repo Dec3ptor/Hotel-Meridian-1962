@@ -91,7 +91,7 @@ async function main(): Promise<void> {
       if (msg.type() === 'error') errors.push(msg.text());
     });
     page.on('pageerror', (err) => errors.push(String(err)));
-    await page.goto(`${base}?seed=7`, { waitUntil: 'load' });
+    await page.goto(`${base}?seed=7&autostart=1`, { waitUntil: 'load' });
     await page.waitForFunction(() => (window as unknown as { meridian?: { started: boolean } }).meridian?.started === true, undefined, { timeout: 20000 });
     // A tap on the floor near the player and a wait, to exercise input and fast-forward.
     if (view.mobile) await page.touchscreen.tap(view.width / 2 + 40, view.height / 2 + 20);

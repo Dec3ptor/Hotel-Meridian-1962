@@ -7,13 +7,17 @@ import '../content';
 import { content } from '../content';
 import { PUBLIC_FACE } from '../content/dialogue/facts';
 import { ACCUSATIONS, CLAIMS, availableTopics, claimIsTrue } from '../content/dialogue/topics';
+import { AudioEngine, type Sfx } from '../audio/audio';
 import { DebugOverlay } from '../debug/overlay';
 import { InputController } from '../input/pointer';
+import { createMemory } from '../sim/memory';
+import { defaultNight, whatChanged } from '../sim/whatchanged';
+import { showTitle } from '../ui/title';
 import { observe } from '../sim/agents/beliefs';
 import { describeEvent } from '../sim/events';
 import { absorbLoop, knows, type PlayerMemory } from '../sim/memory';
 import { Notebook } from '../ui/notebook';
-import { loadMemory, loadSettings, saveMemory, saveSettings } from './storage';
+import { clearMemory, loadMemory, loadSettings, saveMemory, saveSettings } from './storage';
 import { CHARACTER_LOOKS } from '../render/palette';
 import { Scene, type PickResult } from '../render/scene';
 import { formatClock, minutesToTick } from '../sim/clock';
@@ -80,6 +84,7 @@ export class Game {
   readonly input: InputController;
   readonly debug: DebugOverlay;
   readonly notebook: Notebook;
+  readonly audio: AudioEngine;
   readonly uiRoot: HTMLElement;
   memory: PlayerMemory;
   settings: GameSettings = { ...DEFAULT_SETTINGS };
@@ -119,6 +124,10 @@ export class Game {
     this.overlays = new Overlays(uiRoot);
     this.debug = new DebugOverlay(uiRoot, this);
     this.memory = loadMemory();
+    this.audio = new AudioEngine(this.s);
+    const unlockAudio = () => this.audio.unlock();
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
     this.notebook = new Notebook(uiRoot, this.s, {
       onClose: () => this.closeNotebook(),
       onTheory: (kind, who) => {
@@ -137,8 +146,13 @@ export class Game {
     this.scene.resetHistory(this.sim.world);
     this.scene.app.ticker.add((t) => this.frame(t.deltaMS));
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.scene.app.ticker.stop();
-      else this.scene.app.ticker.start();
+      if (document.hidden) {
+        this.scene.app.ticker.stop();
+        this.audio.suspend();
+      } else {
+        this.scene.app.ticker.start();
+        this.audio.resume();
+      }
     });
     void appRoot;
   }
@@ -179,7 +193,34 @@ export class Game {
     this.scene.setReducedMotion(this.settings.reducedMotion);
     document.body.classList.toggle('high-contrast', this.settings.highContrast);
     this.scene.highContrast = this.settings.highContrast;
+    this.audio.setVolumes({ master: this.settings.masterVolume, music: this.settings.musicVolume, sfx: this.settings.sfxVolume });
     saveSettings(this.settings);
+  }
+
+  /** The title screen; Begin starts the night after the last one remembered. */
+  showTitleScreen(): void {
+    const total = this.sim.s.endings.length - 1;
+    showTitle(this.overlays, this.memory.loops, this.memory.endingOrder.length, total, {
+      onBegin: () => {
+        this.overlays.closeCard();
+        this.audio.unlock();
+        const next = this.memory.loops + 1;
+        if (next !== this.loop) {
+          this.loop = next;
+          this.startLoop(next);
+        }
+        this.start();
+      },
+      onFullscreen: () => void toggleFullscreen(),
+      onSettings: () => this.openSettings(() => this.showTitleScreen()),
+      onClearMemory: () => {
+        clearMemory();
+        this.memory = createMemory();
+        this.loop = 1;
+        this.startLoop(1);
+        this.showTitleScreen();
+      },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -230,7 +271,18 @@ export class Game {
         break;
       case 'ClueFound':
         this.hud.toast(`New clue: ${ev.text}`, 'clue', 6000);
+        this.audio.play('clue', 0.8);
         this.stopWait();
+        break;
+      case 'Sound': {
+        const map: Partial<Record<string, Sfx>> = { scream: 'scream', gunshot: 'gunshot', knock: 'knock', bell: 'bell', creak: 'creak', glass_breaks: 'glass', thunder: 'thunder', struggle: 'struggle', door_slam: 'door' };
+        const sfx = map[ev.kind];
+        if (sfx) this.audio.play(sfx, 1, undefined, ev.room, w.agents.player!.room);
+        break;
+      }
+      case 'DoorOpened':
+      case 'DoorClosed':
+        if (ev.by === 'player') this.audio.play('door', 0.6);
         break;
       case 'Looked':
         this.hud.toast(ev.text, 'info', 6000);
@@ -310,6 +362,7 @@ export class Game {
         if (ev.agent === 'player') this.hud.toast('Everything goes dark.', 'fail', 6000);
         break;
       case 'LoopEnded':
+        this.audio.play('reset', 0.9);
         void this.endLoop(ev);
         break;
       default:
@@ -340,7 +393,11 @@ export class Game {
       while (this.accumulator >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
         this.keyboardMovement();
         this.scene.beforeStep(this.sim.world);
+        const p = this.sim.world.agents.player!;
+        const px = p.pos.x;
+        const py = p.pos.y;
         this.sim.step();
+        if (factor <= 1 && (p.pos.x !== px || p.pos.y !== py)) this.audio.stepFor(p.room, now);
         this.accumulator -= STEP_MS;
         steps++;
         if (this.sim.world.ended) break;
@@ -351,6 +408,7 @@ export class Game {
     const alpha = factor > 0 ? Math.min(1, this.accumulator / STEP_MS) : 1;
     this.dialogue.update(dt);
     this.scene.render(this.sim.world, alpha, dt, now);
+    this.audio.update(this.sim.world, this.sim.world.fixtures.radio?.state.on === true, this.sim.world.tick >= minutesToTick(210));
     this.hud.setClock(formatClock(this.sim.world.tick), this.loop);
     this.hud.setSpeed(this.paused ? 'PAUSED' : this.waitUntil !== undefined ? 'WAITING' : this.dialogue.isOpen ? 'TALKING' : '');
     this.hud.updateCaptions((agent) => (agent === 'radio' ? this.scene.screenOf(this.sim.world, 'fixture', 'radio', this.tmp) : this.scene.screenOf(this.sim.world, 'agent', agent, this.tmp)), now);
@@ -686,7 +744,7 @@ export class Game {
   shortNameOf(id: CharacterId): string {
     const face = PUBLIC_FACE[id];
     if (face.revealedBy && !playerKnows(this.world, face.revealedBy) && !this.hooks.memoryKnows(face.revealedBy)) return face.shortName;
-    return this.shortNameOf(id);
+    return this.s.characters[id]!.shortName;
   }
 
   openDialogue(id: CharacterId): void {
@@ -784,7 +842,7 @@ export class Game {
     });
   }
 
-  openSettings(): void {
+  openSettings(back?: () => void): void {
     this.paused = true;
     const content = document.createElement('div');
     const mkRange = (label: string, min: number, max: number, step: number, value: number, on: (v: number) => void) => {
@@ -822,7 +880,7 @@ export class Game {
     this.overlays.card({
       title: 'Settings',
       content,
-      buttons: [{ label: 'Done', primary: true, run: () => this.togglePause() }],
+      buttons: [{ label: 'Done', primary: true, run: () => (back ? back() : this.togglePause()) }],
     });
     this.hooks.onEvent?.({ type: 'WorldEvent', tick: this.world.tick, id: 'settings', text: '' }, this);
   }
@@ -899,11 +957,27 @@ export class Game {
     await this.overlays.fade(true, 1500);
     const def = ev.ending ? endingDef(this.sim.s, ev.ending) : undefined;
     const total = this.sim.s.endings.length - 1;
+    const changes = this.world.commands.length > 0 ? whatChanged(this.world, defaultNight(this.seed, this.loop), this.s) : [];
+    let content: HTMLElement | undefined;
+    if (changes.length > 0) {
+      content = document.createElement('div');
+      const h = document.createElement('h2');
+      h.textContent = 'What changed tonight';
+      const ul = document.createElement('ul');
+      ul.style.textAlign = 'left';
+      for (const c of changes) {
+        const li = document.createElement('li');
+        li.textContent = c;
+        ul.appendChild(li);
+      }
+      content.append(h, ul);
+    }
     await new Promise<void>((resolve) => {
       this.overlays.card({
         title: def?.title ?? 'The night ends',
         subtitle: `${ev.reason === '2:00 AM' ? '2:00 AM' : ev.reason}${firstTime ? ' · a new ending' : ''} · ${this.memory.endingOrder.length} of ${total} found`,
         body: def?.epilogue ?? 'The rain goes on. The clock will come round again.',
+        content,
         buttons: [{ label: 'Again', primary: true, run: () => resolve() }],
       });
     });

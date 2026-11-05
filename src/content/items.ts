@@ -160,6 +160,7 @@ export const fixtures: FixtureDef[] = [
     at: { x: 39, y: 6 },
     blocking: true,
     description: 'Mirrored shelves of bourbon and rye, half of them empty.',
+    uses: { drink: { minutes: 1.5, effect: (w, who) => adjustMood(w, who, 'drunk', 1.5, 'a drink from the shelf') } },
   },
   {
     id: 'piano',
@@ -270,6 +271,7 @@ export const fixtures: FixtureDef[] = [
     at: { x: 30, y: 14 },
     blocking: true,
     description: 'A cold range.',
+    uses: { warm: { minutes: 0.3 } },
   },
   // --- Room 6 ---------------------------------------------------------------
   {
@@ -280,6 +282,7 @@ export const fixtures: FixtureDef[] = [
     at: { x: 32, y: 26 },
     blocking: true,
     description: 'A motor-court bed with a thin chenille spread.',
+    uses: { sit: { minutes: 0.2 } },
   },
   {
     id: 'jimmys_jacket',
@@ -336,6 +339,7 @@ export const fixtures: FixtureDef[] = [
     tiles: [{ x: 37, y: 23 }],
     at: { x: 37, y: 23 },
     description: 'Rain streaks the glass. The lot and the back of the hotel are out there.',
+    uses: { watch: { minutes: 0.3 } },
   },
   {
     id: 'thin_wall_7',
@@ -411,6 +415,7 @@ export const fixtures: FixtureDef[] = [
     tiles: [{ x: 33, y: 5 }],
     at: { x: 33, y: 5 },
     description: 'A tall window over the front drive and the lot.',
+    uses: { watch: { minutes: 0.3 } },
   },
   // --- Suite 1 --------------------------------------------------------------
   {
@@ -441,6 +446,7 @@ export const fixtures: FixtureDef[] = [
     at: { x: 12, y: 11 },
     blocking: true,
     description: 'A wide bed, barely slept in.',
+    uses: { sit: { minutes: 0.2 } },
   },
   {
     id: 'window1',
@@ -449,6 +455,7 @@ export const fixtures: FixtureDef[] = [
     tiles: [{ x: 10, y: 17 }],
     at: { x: 10, y: 17 },
     description: 'A window over the rear lot.',
+    uses: { watch: { minutes: 0.3 } },
   },
   // --- Suite 2 --------------------------------------------------------------
   {
@@ -469,6 +476,7 @@ export const fixtures: FixtureDef[] = [
     at: { x: 19, y: 10 },
     blocking: true,
     description: 'Made with military corners.',
+    uses: { sit: { minutes: 0.2 } },
   },
   {
     id: 'desk2',
@@ -520,6 +528,7 @@ export const fixtures: FixtureDef[] = [
     at: { x: 34, y: 15 },
     blocking: true,
     description: 'A bed with a suit laid out on it.',
+    uses: { sit: { minutes: 0.2 } },
   },
   {
     id: 'washstand',

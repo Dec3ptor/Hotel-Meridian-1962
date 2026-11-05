@@ -2,56 +2,88 @@
 
 A top-down time-loop murder mystery for the web. One stormy night in 1962 at a fading art deco hotel, replayed from 10:00 PM to 2:00 AM until you understand it. The full design is in [SPEC.md](SPEC.md).
 
-## Status: Phase 1 complete (simulation core, no graphics)
+**Play it:** https://dec3ptor.github.io/Hotel-Meridian-1962/ (deployed by GitHub Actions from this branch; see `.github/workflows/pages.yml`).
+
+## Status: all six phases built
 
 | Script | What it does |
 | --- | --- |
-| `npm test` | Vitest: default-night timeline, determinism, performance, navigation |
-| `npm run sim` | One headless night; prints the event log, the decision log and the ending |
-| `npm run sim -- --seed 7 --until 1:45 --all` | Other seeds, stop early, show every event (moves, doors, sightings) |
+| `npm run dev` | Vite dev server |
+| `npm test` | Vitest: default night, determinism, performance, navigation, butterfly cascades, every ending, response coverage |
+| `npm run sim` | One headless night; prints the event log, the decision log and the ending (`-- --seed 7 --until 1:45 --all`) |
+| `npm run build` | Production build into `dist/` |
+| `npm run budget` | Checks the gzipped JavaScript against the 400 KB budget |
+| `npm run smoke` | Builds, serves and drives the game in headless Chromium at phone and desktop sizes, with screenshots |
 | `npm run typecheck` | `tsc --noEmit` (strict) |
-| `npm run build` | Vite production build (the page just confirms the sim runs in a browser until Phase 3) |
+
+## How to play
+
+- Tap or click the floor to walk. Tap a person, object or door to walk there and open the verb wheel. Long-press or right-click to look without walking.
+- The tray at the bottom holds what you carry: tap a slot (or press 1 to 8) then tap a target to use the item on it, or drag the item onto the target. Swipe the tray up to expand it.
+- Talk opens the dialogue panel: Ask about topics you have learned, Tell people things (true or bluffed), Show items, Accuse. Space skips a line.
+- Wait (T) fast-forwards until something happens near you. N opens the notebook. Esc pauses. C recentres. Pinch or scroll to zoom. The backtick opens the debug overlay.
+- The night ends at 2:00 AM, when you die, or when an ending triggers. The world resets; the notebook does not.
 
 ## Layout
 
 ```
-src/sim/        engine: world, clock, rng, events, nav (A*), perception, actions, storylets, endings, memory
+src/sim/        engine: world, clock, rng, events, nav (A*), perception, actions, commands (player verbs),
+                storylets, endings, memory, whatchanged (loop summary)
 src/sim/agents/ planner (goals/plans), beliefs, mood, reactions, gossip
-src/content/    data: map, items and fixtures, six characters + player, storylets, schedule, endings
-scripts/sim.ts  the CLI
+src/content/    data: map, items and fixtures, six characters + player, storylets (night + player), dialogue
+                topics/claims/facts, schedule, endings
+src/render/     PixiJS scene: static geometry, characters, items, lighting, rain, camera, picking
+src/ui/         DOM overlay: HUD, verb wheel, dialogue, notebook, overlays, title, styles
+src/input/      pointer events (mouse, touch, pen), keyboard
+src/audio/      synthesised rain, thunder, radio, footsteps, creak, clock, stings
+src/game/       the controller (fixed-step loop, commands, loop reset), storage
+src/debug/      agent inspector, logs, timeline scrubber
+scripts/        sim CLI, smoke test, bundle budget
 tests/          headless tests
 ```
 
-The simulation is the game. `World` is one plain JSON-serialisable object (clock, rooms, doors, items, agents, flags, event log, decision log, input log). Content is static data referenced by id. Every state change goes through `src/sim/actions.ts` and emits a typed event; every agent decision lands in the decision log with a reason.
+The simulation is the game. `World` is one plain JSON-serialisable object; content is static data referenced by id; every state change goes through `src/sim/actions.ts` and emits a typed event; every agent decision lands in the decision log with a reason.
 
-## Phase 1 report
+## Phase reports
 
-### What works
+### Phase 1: simulation core
 
-- **Default night.** With the player idle in Room 7, all 50 checked rows of the Section 7 timeline occur within ±2 game minutes, for seeds 1, 2, 3 and 17, and the loop ends in *The Default* (Voss stabbed by the Colonel at 1:39, Jimmy seen with blood on his cuff, Walter finds the body at 1:58). Nothing is scripted: each character has ranked goals with alternative plans, and the timeline is what those plans produce.
-- **Determinism.** Same seed gives byte-identical event, decision and agent state; stepping tick by tick matches running in one go; the world survives a JSON round trip.
-- **Speed.** A full 6,000-tick night simulates in about 120–150 ms on this container (the test requires < 200 ms). Paths are cached per (from, to, blocked doors, avoided rooms, avoided stairs, costly rooms); belief keys are precomputed; sound attenuation is memoised until a door changes.
-- **Agents.** Perceive (sightlines per room, archways, doorways, windows, stairwells, lighting; sound over a room graph with per-link attenuation; gestures), react (generic rules plus per-character reactions), re-rank goals from mood and beliefs, check step preconditions and deadlines every tick, act. Plans fall through to alternatives with a logged reason (`01:06 vivian: abandoned DoseNightcap: tray not in kitchen`).
-- **Butterfly plumbing is already live.** Shared resources (one knife, one tray, keys, the back stair), perception-driven beliefs, mood thresholds, trust-weighted gossip with sources, and the `DoseNightcap → DrinkItOff` fallback all run. During development, a timing bug that made Walter carry the tray off early produced exactly the spec's cascade: Vivian abandoned the dosing, her fear rose, and she went down to the bar.
-- **Endings.** All twelve conditions are written in `src/content/endings.ts` and checked from state at loop end. Only *The Default* and *The Fixer Walks* can be reached before player verbs exist; the others read flags that Phase 2 and Phase 5 actions will set.
-- **Memory.** `src/sim/memory.ts` defines the cross-loop structure and a pure merge; storage and the notebook arrive in Phase 5.
+- With the player idle, 50 checked rows of the Section 7 timeline occur within ±2 game minutes for seeds 1, 2, 3 and 17, and the loop ends in *The Default*. Nothing is scripted: each character has ranked goals with alternative plans.
+- The same seed gives byte-identical event, decision and agent state; a night survives a JSON round trip; a full 6,000-tick night simulates in roughly 90 to 150 ms.
+- Interpretations: plans live in content and agents store only progress (functions cannot be serialised); `active` is a goal's start condition and `done` stops it; interrupted goals restart their plan with `skipIf` passing over finished work; guests path around service rooms; windows and stairwells give a glimpse, not detail; one dose makes Voss drowsy twelve minutes after drinking and two kill; the loop ends at exactly 2:00 AM.
 
-### What does not work yet (by design, later phases)
+### Phase 2: player verbs and butterfly tests
 
-- No player verbs: the player is a perceivable agent with no goals. `Sim.enqueue()` and the command log exist; the dispatcher is Phase 2.
-- No rendering, input, audio or UI.
-- Gossip content is thin: characters share what they believe, filtered by secrets and trust, but there are only the storylets the default night needs plus one fallback line per character.
+- Verbs are sim commands (move, look, take, use, give, show, talk, tell, accuse, listen, hide, follow, drop, wait) queued as pending actions that walk the player to their target. Pickpocketing fails when the holder can see you. Looking closely at evidence records clue facts.
+- The cast reacts to the player: owners see off intruders and lock up, anyone notices being followed, Voss orders strangers out of Suite 3, the Colonel changes target when shown proof, silences or flees from a witness, Ruth confronts Jimmy about Voss, Walter marks a suspect.
+- All five spec cascades pass as scripted input logs, with no special-case code. Replaying a log reproduces the night exactly.
 
-### Interpretations and choices
+### Phase 3: rendering and desktop play
 
-1. **Plans live in content, not in `World`.** The spec's `Agent` carries `goals` and `plans` with function preconditions, which cannot be serialised. Agents in `World` store goal progress (`goalStates`, `current`), beliefs, mood and inventory; the plan library is static per character and referenced by id. Content condition functions keep the spec signature `(world, agent)` and reach static data through an "active content" registry.
-2. **Goal semantics.** `active` is a start condition; once a goal is under way it runs until its plan completes or fails, `done` holds, or a higher-priority goal outranks it. Interrupted goals restart their plan from step 0 when resumed, with `skipIf` on steps to pass over work already done. Persistent goals repeat; one that completes in the tick it started rests a minute so it cannot spin.
-3. **Movement.** One tile per tick for everyone (configurable per character). Guests route around service rooms (kitchen, laundry) unless a plan says otherwise; staff do not. Timings in the Section 7 table were met by choosing when goals become available, not by teleporting.
-4. **The tray.** "Walter leaves it on the counter when Ruth rings the desk bell" emerges from the bell interrupting a two-minute preparation; the aspirin errand keeps him out of the kitchen until Vivian is gone. He takes the tray up at 1:18.
-5. **The towel.** The Colonel drops it down the chute from the corridor hatch, goes down the back stair to bury it in the laundry cart, then returns to Suite 2 by the grand staircase (his plan avoids the back stair on the way up), which creaks at 1:48.
-6. **Letters.** Vivian keeps Voss's blackmail letters sewn into her suitcase lining (Suite 1). Voss's envelope, locked in the hotel safe at 10:15, holds her 1949 letters; she believes they are in Suite 3.
-7. **Doors.** Private rooms (office, suites, Rooms 6 and 7) can be latched from inside without a key; other locks need a key or a master. Suite 3 is locked when Voss is in it until he tells Walter to leave it unlocked at 1:20.
-8. **Windows and stairwells** give a glimpse (who is there), not detail (blood, a weapon); a body on the floor is not visible through a window.
-9. **Drugs and violence.** One dose makes Voss drowsy 12 minutes after drinking; two doses kill. An attack on a drowsy or sleeping target succeeds quietly; an awake target holding a loaded gun shoots a non-gun attacker (the Self-Defence route); otherwise an armed attacker kills noisily and an unarmed one scuffles. Taking an item from a bloody corpse stains you.
-10. **Lot and map.** The parking lot wraps the building (front drive north, rear lot and motor court south); the Colonel's car sits on the east side under Suite 3's window. Grid: 46×32 tiles per floor, 32 px tiles.
-11. **Loop end.** The loop ends at exactly 2:00 AM (tick 6000); Walter reaches the body at about 1:58 because Ruth reports Jimmy's bloody cuff to him.
+- Procedural art for both floors baked into per-floor textures; cut-away walls around the player's room; dimmed neighbours; doors with lock marks; item glyphs; characters readable by silhouette and colour; a darkness layer with lamp light cut out and storm flicker; rain over the lot; an easing camera with 0.75 to 1.5 zoom.
+- A fixed 10-tick-per-second loop with interpolated rendering, Wait at 20x, dialogue at quarter speed, pause when the tab is hidden, and loop reset with a fade and an ending card. HUD, tray, verb wheel, dialogue panel, toasts and captions are DOM.
+- Debug overlay: agent inspector, decision and event logs, and a timeline scrubber that rebuilds the night from the input log.
+- Frame rate cannot be measured honestly in this container (software GL), so `npm run smoke` reports what headless Chromium manages and checks for errors; the rendering work per frame is a handful of containers and one screen-sized render texture.
+
+### Phase 4: mobile landscape
+
+- Safe-area insets, 44 px targets and 56 px wheel buttons, pointer events for every input, pinch zoom, swipe-to-expand tray, a rotate overlay that pauses the game in portrait, fullscreen with a landscape orientation lock (refusals ignored), `touch-action: none`, and a web app manifest with icons.
+- Not verified on a real phone from here; the smoke test runs the phone viewport with touch emulation.
+
+### Phase 5: memory, notebook and endings
+
+- Cross-loop memory (facts, clues, witnessed events, what people said, theories, endings) is merged at loop end and saved to localStorage behind try/catch. Each night starts with what you learned, which unlocks topics and the safe. The notebook has People (names hidden until revealed), a Timeline merged across nights, a Connections board and Theories that light up when proven.
+- `tests/endings.test.ts` reaches all twelve endings from input logs. Witnesses learn who killed whom; the Colonel confronts the driver only once armed and returns if turned away; a blow needs the target within arm's reach.
+
+### Phase 6: content depth and polish
+
+- Every character answers every topic, claim, item and accusation with authored lines (a coverage test enforces it); fallbacks have variants; every fixture has a verb beyond Look.
+- Mood glyphs above heads, a title screen, a settings menu (text size, text speed, volumes, reduced motion, high-contrast outlines, a hold-to-highlight button), and synthesised audio: rain louder outdoors and by windows, a positional jazz radio, footsteps by floor, the creaking step, a clock tick that quickens after 1:30, stings for clues and the reset.
+- After a night with any input, the ending card lists what changed against the default night, generated from room timelines and abandoned plans.
+- Budget: about 240 KB of gzipped JavaScript (limit 400 KB).
+
+## Known limits
+
+- No sprite sheets yet; everything is drawn from shapes.
+- The what-changed summary is heuristic and lists at most seven differences.
+- The deploy workflow expects GitHub Pages to be served from Actions; the first run enables it when permissions allow.

@@ -15,7 +15,8 @@ async function main(): Promise<void> {
   const seed = Number(params.get('seed') ?? 1962);
   const game = await Game.boot(appRoot, uiRoot, { seed: Number.isFinite(seed) ? seed : 1962 });
   window.meridian = game;
-  game.start();
+  if (params.get('autostart') === '1') game.start();
+  else game.showTitleScreen();
 }
 
 main().catch((err) => {
